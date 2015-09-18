@@ -6,14 +6,19 @@ import (
 	"go/ast"
 	"go/importer"
 	"go/parser"
+	"go/printer"
 	"go/token"
 	"go/types"
 	"log"
+	"os"
 	"reflect"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 func main() {
 	path := flag.String("path", "../example", "The source path of a Go package")
+	check := flag.Bool("check", true, "Add or remove NaN checks")
 	flag.Parse()
 
 	fset, astf := parsePackage(*path)
@@ -21,14 +26,15 @@ func main() {
 	info := inferTypes(*path, fset, astf)
 
 	for _, f := range astf {
-		ast.Walk(&PrintASTVisitor{info}, f)
+		ast.Walk(&Printer{info, *check}, f)
+		printFile(fset, f)
 	}
 }
 
 func parsePackage(path string) (*token.FileSet, []*ast.File) {
 	fset := token.NewFileSet()
 
-	pkgs, e := parser.ParseDir(fset, path, nil, 0)
+	pkgs, e := parser.ParseDir(fset, path, nil, parser.ParseComments)
 	if e != nil {
 		log.Fatal(e)
 	}
@@ -41,7 +47,6 @@ func parsePackage(path string) (*token.FileSet, []*ast.File) {
 			astf = append(astf, f)
 		}
 	}
-
 	return fset, astf
 }
 
@@ -66,14 +71,17 @@ func inferTypes(path string, fset *token.FileSet, astf []*ast.File) *types.Info 
 	return info
 }
 
-type PrintASTVisitor struct {
-	info *types.Info
+type Printer struct {
+	info  *types.Info
+	check bool
 }
 
-func (v *PrintASTVisitor) Visit(node ast.Node) ast.Visitor {
+func (v *Printer) Visit(node ast.Node) ast.Visitor {
 	if node != nil {
 		fmt.Printf("%s", reflect.TypeOf(node).String())
 		switch node.(type) {
+		case *ast.CallExpr:
+			fmt.Printf(" : %#v", spew.Sdump(node.(*ast.CallExpr)))
 		case ast.Expr:
 			t := v.info.TypeOf(node.(ast.Expr))
 			if t != nil {
@@ -83,4 +91,15 @@ func (v *PrintASTVisitor) Visit(node ast.Node) ast.Visitor {
 		fmt.Println()
 	}
 	return v
+}
+
+func printFile(fset *token.FileSet, astf *ast.File) {
+	f, e := os.Create(fset.Position(astf.Package).Filename)
+	if e != nil {
+		log.Fatal(e)
+	}
+
+	if e := printer.Fprint(f, fset, astf); e != nil {
+		log.Fatal(e)
+	}
 }
