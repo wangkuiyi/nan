@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"go/ast"
 	"go/importer"
@@ -11,48 +12,58 @@ import (
 	"reflect"
 )
 
-const (
-	kPath = "/Users/yi/go/src/github.com/wangkuiyi/nan"
-)
-
 func main() {
+	path := flag.String("path", "../example", "The source path of a Go package")
+	flag.Parse()
+
+	fset, astf := parsePackage(*path)
+
+	info := inferTypes(*path, fset, astf)
+
+	for _, f := range astf {
+		ast.Walk(&PrintASTVisitor{info}, f)
+	}
+}
+
+func parsePackage(path string) (*token.FileSet, []*ast.File) {
 	fset := token.NewFileSet()
 
-	pkgs, e := parser.ParseDir(fset, kPath, nil, 0)
+	pkgs, e := parser.ParseDir(fset, path, nil, 0)
 	if e != nil {
 		log.Fatal(e)
-		return
 	}
 
 	astf := make([]*ast.File, 0)
 	for _, pkg := range pkgs {
-		fmt.Printf("package %v\n", pkg.Name)
+		fmt.Printf("Parsed package %v\n", pkg.Name)
 		for fn, f := range pkg.Files {
-			fmt.Printf("file %v\n", fn)
+			fmt.Printf("\t%v\n", fn)
 			astf = append(astf, f)
 		}
 	}
 
+	return fset, astf
+}
+
+func inferTypes(path string, fset *token.FileSet, astf []*ast.File) *types.Info {
 	config := &types.Config{
 		Error: func(e error) {
 			fmt.Println(e)
 		},
 		Importer: importer.Default(),
 	}
-	info := types.Info{
+	info := &types.Info{
 		Types: make(map[ast.Expr]types.TypeAndValue),
 		Defs:  make(map[*ast.Ident]types.Object),
 		Uses:  make(map[*ast.Ident]types.Object),
 	}
-	pkg, e := config.Check(kPath, fset, astf, &info)
+	pkg, e := config.Check(path, fset, astf, info)
 	if e != nil {
-		fmt.Println(e)
+		log.Fatal(e)
 	}
-	fmt.Printf("types.Config.Check got %v\n", pkg.String())
+	fmt.Printf("Type inference done: %v\n", pkg.String())
 
-	for _, f := range astf {
-		ast.Walk(&PrintASTVisitor{&info}, f)
-	}
+	return info
 }
 
 type PrintASTVisitor struct {
