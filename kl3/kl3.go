@@ -1,12 +1,12 @@
 package main
 
+// START OMIT
 import (
 	"fmt"
 
 	"github.com/wangkuiyi/nan"
 )
 
-// START OMIT
 func pmi(p, q float64) float64 {
 	return nan.Log(p) - nan.Log(q)
 }
