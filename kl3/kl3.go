@@ -4,7 +4,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/wangkuiyi/nan"
+	"../../nan"
 )
 
 func pmi(p, q float64) float64 {
