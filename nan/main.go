@@ -26,7 +26,7 @@ func main() {
 	info := inferTypes(*path, fset, astf)
 
 	for _, f := range astf {
-		ast.Walk(&Printer{info, *check}, f)
+		ast.Walk(&Printer{info}, f)
 		printFile(fset, f)
 	}
 }
@@ -72,8 +72,7 @@ func inferTypes(path string, fset *token.FileSet, astf []*ast.File) *types.Info 
 }
 
 type Printer struct {
-	info  *types.Info
-	check bool
+	info *types.Info
 }
 
 func (v *Printer) Visit(node ast.Node) ast.Visitor {
@@ -90,6 +89,23 @@ func (v *Printer) Visit(node ast.Node) ast.Visitor {
 		}
 		fmt.Println()
 	}
+	return v
+}
+
+type Rewriter struct {
+	info  *types.Info
+	check bool
+}
+
+func (v *Rewriter) Visit(node ast.Node) ast.Visitor {
+	switch expr := node.(type) {
+	case *ast.BinaryExpr:
+		node = &ast.CallExpr{
+			Fun: &ast.SelectorExpr{
+				X: &ast.Ident{Name:"nan"},
+				Sel: &ast.Ident{Name:"Div"}},
+			Args: []ast.Expr{expr.X, expr.Y}}
+			
 	return v
 }
 
